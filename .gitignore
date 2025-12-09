@@ -1,0 +1,75 @@
+# ---------------------------
+# Python virtual environments
+# ---------------------------
+venv/
+*/venv/
+.venv/
+*/.venv/
+
+# ---------------------------
+# Output folders (simulation results, plots, artifacts)
+# ---------------------------
+output/
+*/output/
+plots/
+*/plots/
+
+# If output contains other subfolders
+**/output/**
+**/plots/**
+
+# ---------------------------
+# Python cache / build files
+# ---------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+*.pickle
+
+# ---------------------------
+# Jupyter Notebook junk
+# ---------------------------
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# ---------------------------
+# Mac / OS generated files
+# ---------------------------
+.DS_Store
+**/.DS_Store
+.AppleDouble
+.LSOverride
+
+# ---------------------------
+# VSCode
+# ---------------------------
+.vscode/
+*.code-workspace
+
+# ---------------------------
+# Logs / temp files
+# ---------------------------
+*.log
+*.tmp
+*.temp
+
+# ---------------------------
+# Environment / secrets (if used)
+# ---------------------------
+.env
+*.env
+
+# ---------------------------
+# Data files 
+# ---------------------------
+
+*.csv
+*.parquet
+*.feather
+*.json
+
+# Streamlit generated files
+.streamlit/
+*/.streamlit/
