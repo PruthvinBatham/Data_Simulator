@@ -41,6 +41,7 @@ __pycache__/
 **/.DS_Store
 .AppleDouble
 .LSOverride
+._*
 
 # ---------------------------
 # VSCode
