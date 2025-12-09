@@ -14,7 +14,10 @@ This project implements behavioral finance simulations based on Andries et al. (
 ## Important: Data Setup for Validation
 
 To enable the validation features (comparing simulated paths against S&P 500 history), you must ensure the reference data file is present.
+
 **This file is NOT included in the GitHub repository**
+
+
 **Place it here**:
     ```
     Data/data used in original code/SPX_5Y_Returns.xlsx
