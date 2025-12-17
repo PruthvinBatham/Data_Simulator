@@ -276,6 +276,24 @@ with st.sidebar:
     # Run button
     run_button = st.button("🚀 Run Simulation", type="primary", use_container_width=True)
 
+    st.divider()
+    
+    # Export Controls
+    st.subheader("Results Export")
+    enable_csv_export = st.checkbox(
+        "Enable CSV Export of Paths",
+        value=False,
+        help="Generate a CSV file containing the full return paths for all simulations"
+    )
+    st.session_state.enable_csv_export = enable_csv_export
+    
+    enable_plots_export = st.checkbox(
+        "Enable Plots Export (HTML)",
+        value=False,
+        help="Generate interactive HTML plots for all sample paths"
+    )
+    st.session_state.enable_plots_export = enable_plots_export
+
 # Main content area
 if run_button:
     with st.spinner("Running simulation..."):
@@ -413,6 +431,24 @@ if st.session_state.results is not None:
             st.write(f"N Simulations: {config.n_simulations:,}")
             st.write(f"Random Seed: {config.random_seed}")
             st.write(f"SPX Validation: {'Yes' if config.validate_with_spx else 'No'}")
+        
+        st.divider()
+        
+        # Effective Parameters and Run ID (Request id: 6)
+        st.write(f"**Run ID:** `{st.session_state.run_id}`")
+        
+        with st.expander("🔬 Effective Parameters for this Run"):
+            st.code(f"""
+Time Horizon (H):       {config.time_horizon}
+Target Correlation:     {config.target_correlation}
+Path Configuration:     {config.n_paths_predictable} Pred + {config.n_paths_iid} IID
+Mean Return (mu):       {config.mu}
+Return Vol (sigma_eps): {config.sigma_eps}
+Persistence (phi):      {config.phi}
+Signal Vol (sigma_d):   {config.sigma_delta}
+Shock Corr (rho):       {config.rho}
+Random Seed:            {config.random_seed}
+            """, language="text")
     
     # Summary metrics
     st.header("Simulation Summary")
@@ -875,7 +911,7 @@ if st.session_state.results is not None:
                 N_is = T_is // H
                 
                 r_plot = results['returns_pred'][H:T_is+1:H, i] * 100
-                s_plot = results['signal_pred'][0:T_is:H, i] * 100
+                s_plot = results['signal_pred_actual'][0:T_is:H, i] * 100
                 periods = np.arange(len(r_plot))
                 
                 fig.add_trace(go.Scatter(
@@ -943,7 +979,7 @@ if st.session_state.results is not None:
                 N_is = T_is // H
                 
                 r_plot = results['returns_iid'][H:T_is+1:H, i] * 100
-                s_plot = results['signal_iid'][0:T_is:H, i] * 100
+                s_plot = results['signal_iid_actual'][0:T_is:H, i] * 100
                 periods = np.arange(len(r_plot))
                 
                 fig.add_trace(go.Scatter(
@@ -1010,6 +1046,112 @@ if st.session_state.results is not None:
                 mime="text/csv",
                 use_container_width=True
             )
+
+        # CSV Export of Return Paths (Request id: 4)
+        if st.session_state.get('enable_csv_export', False):
+            # Generate CSV data for paths
+            # We will create a DataFrame where each column is a path
+            
+            # Collect data
+            path_data = {}
+            
+            # Predictable paths
+            if results['returns_pred'] is not None:
+                for i in range(results['returns_pred'].shape[1]):
+                    # We export the H-year returns as the main "return path"
+                    # Note: These are annualized returns over H years
+                    path_data[f'Pred_Path_{i+1}'] = results['returns_pred'][:, i]
+            
+            # IID paths
+            if results['returns_iid'] is not None:
+                for i in range(results['returns_iid'].shape[1]):
+                    path_data[f'IID_Path_{i+1}'] = results['returns_iid'][:, i]
+            
+            if path_data:
+                df_export = pd.DataFrame(path_data)
+                
+                # Add a Time column
+                df_export.insert(0, 'Time_Period', range(len(df_export)))
+                
+                csv_export = df_export.to_csv(index=False)
+                
+                st.download_button(
+                    label="Download Return Paths (CSV)",
+                    data=csv_export,
+                    file_name=f"return_paths_{st.session_state.run_id}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+            else:
+                st.info("No paths to export")
+        elif 'enable_csv_export' in st.session_state and not st.session_state.enable_csv_export:
+             st.caption("Enable CSV export in sidebar to download full path data")
+
+        # HTML Plots Export (Request id: 7)
+        if st.session_state.get('enable_plots_export', False):
+            # We need to regenerate the figures or store them. 
+            # Re-generating them here is cleaner than storing figure objects in session state (memory heavy)
+            
+            # Create a zip file in memory
+            zip_buffer = io.BytesIO()
+            
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                # Predictable paths
+                if config.n_paths_predictable > 0:
+                    for i in range(min(config.n_example_plots // 2, config.n_paths_predictable)):
+                        # Re-create figure logic (simplified for export)
+                        fig = make_subplots()
+                        H = config.time_horizon
+                        T_is = config.years_insample
+                        
+                        r_plot = results['returns_pred'][H:T_is+1:H, i] * 100
+                        s_plot = results['signal_pred_actual'][0:T_is:H, i] * 100
+                        periods = np.arange(len(r_plot))
+                        
+                        fig.add_trace(go.Scatter(x=periods, y=r_plot, name='Returns', line=dict(color='#ef4444')))
+                        fig.add_trace(go.Scatter(x=periods, y=s_plot, name='Signal', line=dict(color='#3b82f6', dash='dash')))
+                        
+                        fig.update_layout(
+                            title=f"Predictable Path {i+1} (r={results['correlations_pred'][i]:.3f})",
+                            template='plotly_white'
+                        )
+                        
+                        # Save to HTML string
+                        html_str = fig.to_html(full_html=True, include_plotlyjs='cdn')
+                        zip_file.writestr(f"predictable_path_{i+1}.html", html_str)
+                
+                # IID paths
+                if config.n_paths_iid > 0:
+                    for i in range(min(config.n_example_plots // 2, config.n_paths_iid)):
+                        fig = make_subplots()
+                        H = config.time_horizon
+                        T_is = config.years_insample
+                        
+                        r_plot = results['returns_iid'][H:T_is+1:H, i] * 100
+                        s_plot = results['signal_iid_actual'][0:T_is:H, i] * 100
+                        periods = np.arange(len(r_plot))
+                        
+                        fig.add_trace(go.Scatter(x=periods, y=r_plot, name='Returns', line=dict(color='#ef4444')))
+                        fig.add_trace(go.Scatter(x=periods, y=s_plot, name='Signal', line=dict(color='#3b82f6', dash='dash')))
+                        
+                        fig.update_layout(
+                            title=f"IID Path {i+1} (r={results['correlations_iid'][i]:.3f})",
+                            template='plotly_white'
+                        )
+                        
+                        html_str = fig.to_html(full_html=True, include_plotlyjs='cdn')
+                        zip_file.writestr(f"iid_path_{i+1}.html", html_str)
+            
+            # Download button
+            st.download_button(
+                label="Download Plots (ZIP)",
+                data=zip_buffer.getvalue(),
+                file_name=f"plots_{st.session_state.run_id}.zip",
+                mime="application/zip",
+                use_container_width=True
+            )
+        elif 'enable_plots_export' in st.session_state and not st.session_state.enable_plots_export:
+             st.caption("Enable Plots export in sidebar to download interactive HTML graphs")
     
     with col2:
         # Download summary JSON
@@ -1075,8 +1217,10 @@ if st.session_state.results is not None:
                 save_dir / "paths.npz",
                 returns_pred=results['returns_pred'],
                 signal_pred=results['signal_pred'],
+                signal_pred_actual=results['signal_pred_actual'],
                 returns_iid=results['returns_iid'],
-                signal_iid=results['signal_iid']
+                signal_iid=results['signal_iid'],
+                signal_iid_actual=results['signal_iid_actual']
             )
             
             st.success(f"✓ Saved to {save_dir}")
